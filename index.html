@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Suivi alternance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Archivo:wght@700;800&display=swap">
+<style>
+/* Layout: app shell — header + tabs (Tableau de bord / Colonnes / Liste), detail drawer on the right */
+:root{
+  --bg:#f3f5f8; --surface:#ffffff; --surface-2:#f8f9fb; --fg:#141b2b; --muted:#5b6478; --faint:#8a93a6; --line:#dde2ea; --accent:#1f4fd1; --accent-soft:#e6ecfb;
+  --wait:#5f6878; --wait-bg:#eceff4;
+  --ack:#1f5fbf; --ack-bg:#e3ecfb;
+  --int:#0f7a4b; --int-bg:#dcf3e7;
+  --ref:#b3261e; --ref-bg:#fbe4e2;
+  --fin:#8f5400; --fin-bg:#fdf0d6;
+  --ok:#0b6e62; --ok-bg:#d6f2ee;
+  --shadow:0 12px 40px rgba(20,27,43,.18);
+  --f-display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e131d; --surface:#161d2a; --surface-2:#1b2332; --fg:#e7ebf3; --muted:#a3adc0; --faint:#7b859a; --line:#2a3345; --accent:#86a8ff; --accent-soft:#1d2b4d;
+  --wait:#b2bacb; --wait-bg:#262e3d; --ack:#95b8ff; --ack-bg:#1b2a47; --int:#63d8a4; --int-bg:#123427;
+  --ref:#ff8f86; --ref-bg:#3a1b1b; --fin:#f2b660; --fin-bg:#3a2a12; --ok:#62d3c5; --ok-bg:#10332f; --shadow:0 12px 40px rgba(0,0,0,.5); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e131d; --surface:#161d2a; --surface-2:#1b2332; --fg:#e7ebf3; --muted:#a3adc0; --faint:#7b859a; --line:#2a3345; --accent:#86a8ff; --accent-soft:#1d2b4d;
+  --wait:#b2bacb; --wait-bg:#262e3d; --ack:#95b8ff; --ack-bg:#1b2a47; --int:#63d8a4; --int-bg:#123427;
+  --ref:#ff8f86; --ref-bg:#3a1b1b; --fin:#f2b660; --fin-bg:#3a2a12; --ok:#62d3c5; --ok-bg:#10332f; --shadow:0 12px 40px rgba(0,0,0,.5); color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.45}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:16px;padding-block:24px 56px;display:flex;flex-direction:column;gap:20px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+h1{font-family:var(--f-display);font-weight:800;font-size:clamp(26px,4vw,34px);letter-spacing:-.01em;margin:0;text-wrap:balance}
+h2{font-family:var(--f-display);font-weight:700;font-size:17px;margin:0}
+.sub{color:var(--muted);margin:4px 0 0;font-size:14px}
+.btn{font:inherit;font-weight:600;font-size:14px;border:1px solid var(--accent);background:var(--accent);color:var(--surface);padding:8px 14px;border-radius:8px;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--accent)}
+.btn.small{padding:5px 10px;font-size:13px}
+.btn.danger{background:transparent;color:var(--ref);border-color:var(--ref)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);overflow-x:auto}
+.tab{font:inherit;font-weight:600;font-size:14px;background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;cursor:pointer;white-space:nowrap}
+.tab[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--accent)}
+.panel{display:flex;flex-direction:column;gap:18px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px}
+.card-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.card-head p{margin:0;color:var(--muted);font-size:13px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:2px}
+.kpi b{font-family:var(--f-display);font-size:30px;line-height:1.1;font-variant-numeric:tabular-nums}
+.kpi span{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.kpi small{color:var(--faint);font-size:12px}
+.kpi.warn{border-color:var(--fin)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:18px}
+.grid2>*{min-width:0}
+/* charts */
+.chart{position:relative}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.chart .axis{fill:var(--faint);font-family:var(--f-mono);font-size:11px}
+.chart .grid{stroke:var(--line);stroke-width:1}
+.chart .bar{fill:var(--accent)}
+.chart .bar:hover,.chart .hit:hover+.bar{opacity:.8}
+.chart .val{fill:var(--muted);font-family:var(--f-mono);font-size:11px}
+.chart .lbl{fill:var(--fg);font-size:12.5px}
+.tip{position:absolute;pointer-events:none;background:var(--fg);color:var(--bg);font-size:12px;padding:6px 9px;border-radius:6px;white-space:nowrap;transform:translate(-50%,-110%);opacity:0;transition:opacity .1s}
+.tip.on{opacity:1}
+details.table-view{margin-top:10px;font-size:13px;color:var(--muted)}
+details.table-view table{border-collapse:collapse;margin-top:6px}
+details.table-view td,details.table-view th{padding:3px 10px 3px 0;text-align:left;font-variant-numeric:tabular-nums}
+/* relances */
+.rel-list{display:flex;flex-direction:column}
+.rel{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line);flex-wrap:wrap}
+.rel:first-child{border-top:0}
+.rel .who{flex:1 1 220px;min-width:0}
+.rel .who b{display:block;cursor:pointer}
+.rel .who small{color:var(--muted)}
+.days{font-family:var(--f-mono);font-size:12px;color:var(--fin);background:var(--fin-bg);border-radius:999px;padding:2px 8px;white-space:nowrap}
+.empty{padding:22px;text-align:center;color:var(--muted)}
+/* pills */
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;border-radius:999px;padding:3px 10px;white-space:nowrap}
+.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.st-attente{background:var(--wait-bg);color:var(--wait)} .st-accuse{background:var(--ack-bg);color:var(--ack)}
+.st-entretien{background:var(--int-bg);color:var(--int)} .st-refus{background:var(--ref-bg);color:var(--ref)}
+.st-finaliser{background:var(--fin-bg);color:var(--fin)} .st-accepte{background:var(--ok-bg);color:var(--ok)}
+/* kanban */
+.board{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(230px,1fr);gap:12px;overflow-x:auto;padding-bottom:8px}
+.col{background:var(--surface-2);border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;min-height:200px}
+.col-head{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line);position:sticky;top:0}
+.col-head .n{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.col-body{padding:8px;display:flex;flex-direction:column;gap:8px;flex:1;max-height:62vh;overflow-y:auto}
+.col.over{outline:2px dashed var(--accent);outline-offset:-4px}
+.kcard{background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:9px 11px;cursor:grab;display:flex;flex-direction:column;gap:3px}
+.kcard:hover{border-color:var(--accent)}
+.kcard b{font-size:14px}
+.kcard small{color:var(--muted);font-size:12px;line-height:1.35}
+.kcard .meta{display:flex;justify-content:space-between;gap:6px;font-family:var(--f-mono);font-size:11px;color:var(--faint)}
+.kcard.dragging{opacity:.5}
+/* list */
+.tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chip{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--surface);color:var(--fg);padding:5px 11px;border-radius:999px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.search{flex:1 1 200px;min-width:0;font:inherit;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--fg)}
+.tbl-wrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+table.list{width:100%;border-collapse:collapse;min-width:700px}
+table.list th{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);text-align:left;font-weight:600;padding:10px 12px;border-bottom:1px solid var(--line)}
+table.list td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+table.list tr:last-child td{border-bottom:0}
+table.list tbody tr{cursor:pointer}
+table.list tbody tr:hover{background:var(--surface-2)}
+td.co b{display:block} td.co small{color:var(--muted);font-size:12px}
+td.date{font-family:var(--f-mono);font-size:13px;color:var(--muted);white-space:nowrap}
+/* drawer */
+.scrim{position:fixed;inset:0;background:rgba(10,14,22,.35);z-index:10}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(460px,100%);background:var(--surface);box-shadow:var(--shadow);z-index:11;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px)}
+.drawer-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:18px 18px 12px;border-bottom:1px solid var(--line)}
+.drawer-head h2{font-size:20px}
+.drawer-body{padding:16px 18px 24px;overflow-y:auto;display:flex;flex-direction:column;gap:14px}
+.x{font:inherit;font-size:20px;line-height:1;background:none;border:0;color:var(--muted);cursor:pointer;padding:4px 8px;border-radius:6px}
+.field{display:flex;flex-direction:column;gap:4px}
+.field span{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.field input,.field select,.field textarea{font:inherit;font-size:14px;color:var(--fg);background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%}
+.field textarea{min-height:80px;resize:vertical}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.hist{display:flex;flex-direction:column;gap:8px;border-left:2px solid var(--line);padding-left:12px}
+.hist div{font-size:13px}
+.hist time{display:block;font-family:var(--f-mono);font-size:11px;color:var(--faint)}
+.add-hist{display:flex;gap:8px}
+.add-hist input{flex:1;min-width:0;font:inherit;font-size:14px;color:var(--fg);background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.drawer-foot{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;padding-top:6px}
+.msg{font-size:13px;color:var(--muted);min-height:1.2em;margin:0}
+a.link{color:var(--accent);word-break:break-all}
+@media (max-width:560px){.row2{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:no-preference){.tab,.chip,.kcard{transition:border-color .15s,background .15s,color .15s}}
+
+body{margin:0}
+[hidden]{display:none!important}
+img{max-width:100%}
+.hdr-actions{display:flex;gap:8px;flex-wrap:wrap}
+.banner{background:var(--accent-soft);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.banner p{margin:0;font-size:14px}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Suivi alternance</h1>
+      <p class="sub">Candidatures cybersécurité / infra, rentrée 2026 · relance conseillée après 10 jours sans réponse</p>
+    </div>
+    <div class="hdr-actions">
+      <button class="btn ghost" id="importBtn" type="button">Importer</button>
+      <button class="btn ghost" id="exportBtn" type="button">Exporter</button>
+      <button class="btn" id="newBtn" type="button">+ Nouvelle candidature</button>
+      <input type="file" id="importFile" accept=".json,application/json" hidden>
+    </div>
+  </header>
+
+  <div class="banner" id="banner" hidden>
+    <p><b>Bienvenue !</b> Tes données restent dans ce navigateur. Pour récupérer tes candidatures, clique sur « Importer » et choisis le fichier <code>suivi-alternance-donnees.json</code>.</p>
+    <button class="btn small" type="button" onclick="document.getElementById('importFile').click()">Importer mes candidatures</button>
+  </div>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" data-tab="dash" aria-selected="true">Tableau de bord</button>
+    <button class="tab" role="tab" data-tab="board" aria-selected="false">Colonnes</button>
+    <button class="tab" role="tab" data-tab="list" aria-selected="false">Liste</button>
+  </nav>
+
+  <section class="panel" id="p-dash">
+    <div class="kpis" id="kpis"></div>
+    <div class="card">
+      <div class="card-head"><h2>Relances à faire</h2><p>Sans réponse depuis 10 jours ou plus</p></div>
+      <div class="rel-list" id="relances"><div class="empty">Chargement…</div></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><div class="card-head"><h2>Candidatures par semaine</h2><p>8 dernières semaines</p></div><div class="chart" id="chWeek"></div></div>
+      <div class="card"><div class="card-head"><h2>Par canal</h2><p>Où tu postules</p></div><div class="chart" id="chCanal"></div></div>
+    </div>
+  </section>
+
+  <section class="panel" id="p-board" hidden>
+    <p class="sub" style="margin:0">Glisse une carte vers une autre colonne pour changer son statut. Clique dessus pour ouvrir la fiche.</p>
+    <div class="board" id="board"></div>
+  </section>
+
+  <section class="panel" id="p-list" hidden>
+    <div class="tools">
+      <div id="chips" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+      <input class="search" id="q" type="search" placeholder="Rechercher une entreprise, un poste, un contact">
+    </div>
+    <div class="tbl-wrap">
+      <table class="list">
+        <thead><tr><th>Entreprise / poste</th><th>Canal</th><th>Envoyée</th><th>Statut</th><th>Dernière action</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </section>
+  <p class="msg" id="msg" role="status"></p>
+</div>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" hidden aria-label="Fiche candidature">
+  <div class="drawer-head">
+    <div><h2 id="dTitle">Candidature</h2><div id="dPill" style="margin-top:6px"></div></div>
+    <button class="x" id="dClose" type="button" aria-label="Fermer">×</button>
+  </div>
+  <form class="drawer-body" id="dForm">
+    <div class="row2">
+      <label class="field"><span>Entreprise</span><input id="d-entreprise" required></label>
+      <label class="field"><span>Statut</span><select id="d-status"></select></label>
+    </div>
+    <label class="field"><span>Poste</span><input id="d-poste"></label>
+    <div class="row2">
+      <label class="field"><span>Canal</span><input id="d-canal" placeholder="Mail, HelloWork, site…"></label>
+      <label class="field"><span>Date d'envoi</span><input id="d-date" type="date"></label>
+    </div>
+    <div class="row2">
+      <label class="field"><span>Contact</span><input id="d-contact" placeholder="Nom, fonction"></label>
+      <label class="field"><span>Email du contact</span><input id="d-email" type="email"></label>
+    </div>
+    <label class="field"><span>Lien de l'offre</span><input id="d-lien" type="url" placeholder="https://…"></label>
+    <div id="d-lienOut"></div>
+    <label class="field"><span>Notes (entretien, questions, ressenti)</span><textarea id="d-note"></textarea></label>
+    <div class="field"><span>Historique</span>
+      <div class="hist" id="d-hist"></div>
+      <div class="add-hist"><input id="d-histText" placeholder="Ex. Relance envoyée, appel RH, test technique…"><button class="btn small ghost" type="button" id="d-histAdd">Ajouter</button></div>
+    </div>
+    <div class="drawer-foot">
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" type="submit">Enregistrer</button><button class="btn ghost" type="button" id="d-relance">Marquer relancée</button></div>
+      <button class="btn danger" type="button" id="d-del">Supprimer</button>
+    </div>
+    <p class="msg" id="dMsg"></p>
+  </form>
+</div>
+
+<script>
+const STATUSES=[["attente","Envoyée"],["accuse","Accusé reçu"],["entretien","Entretien / test"],["finaliser","À finaliser"],["refus","Refus"],["accepte","Accepté"]];
+const LABEL=Object.fromEntries(STATUSES);
+const OPEN=new Set(["attente","accuse"]);
+const RELANCE_DAYS=10;
+let items=[],db=null,readOnly=false,tab="dash",filter="all",query="",current=null,draftHist=[];
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const today=()=>new Date().toISOString().slice(0,10);
+const fmt=d=>{if(!d)return"—";const[y,m,j]=d.split("-");return j&&m?`${j}/${m}`:d};
+const dayDiff=d=>d?Math.floor((Date.now()-new Date(d+"T12:00:00").getTime())/864e5):null;
+const pill=s=>`<span class="pill st-${esc(s)}">${esc(LABEL[s]||s)}</span>`;
+const lastAction=i=>[i.date,i.relance,i.maj].filter(Boolean).sort().pop()||"";
+
+$("d-status").innerHTML=STATUSES.map(([k,l])=>`<option value="${k}">${l}</option>`).join("");
+
+/* ---------- tabs ---------- */
+document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>{tab=b.dataset.tab;
+  document.querySelectorAll(".tab").forEach(t=>t.setAttribute("aria-selected",t===b));
+  ["dash","board","list"].forEach(k=>$("p-"+k).hidden=k!==tab);
+  try{localStorage.setItem("tab",tab)}catch{} render()}));
+try{const t=localStorage.getItem("tab");if(t&&t!=="dash")document.querySelector(`.tab[data-tab="${t}"]`)?.click()}catch{}
+
+/* ---------- dashboard ---------- */
+function renderDash(){
+  const n=items.length,c={};STATUSES.forEach(([k])=>c[k]=0);items.forEach(i=>c[i.status]=(c[i.status]||0)+1);
+  const human=c.entretien+c.refus+c.accepte, sent=n-c.finaliser;
+  const rel=relances();
+  const tiles=[
+    ["Candidatures",n,`${c.finaliser} à finaliser`],
+    ["En attente",c.attente+c.accuse,`dont ${c.accuse} accusés de réception`],
+    ["Entretiens",c.entretien+c.accepte,c.accepte?`${c.accepte} accepté(s)`:"tests compris"],
+    ["Taux de réponse",sent?Math.round(human/sent*100)+" %":"—",`${human} réponse(s) d'une personne`],
+    ["Refus",c.refus,"ça fait partie du jeu"],
+    ["À relancer",rel.length,rel.length?"voir ci-dessous":"rien pour l'instant"]
+  ];
+  $("kpis").innerHTML=tiles.map(([l,v,s],i)=>`<div class="kpi${i===5&&rel.length?" warn":""}"><span>${l}</span><b>${v}</b><small>${esc(s)}</small></div>`).join("");
+  $("relances").innerHTML=rel.length?rel.map(i=>`<div class="rel" data-id="${esc(i.id)}">
+    <div class="who"><b data-open="${esc(i.id)}">${esc(i.entreprise)}</b><small>${esc(i.poste||"")}${i.email?" · "+esc(i.email):""}</small></div>
+    <span class="days">${i._d} j</span>${pill(i.status)}
+    ${readOnly?"":`<button class="btn small ghost" type="button" data-relance="${esc(i.id)}">Relancée aujourd'hui</button>`}
+  </div>`).join(""):`<div class="empty">Aucune relance à faire : tout a moins de ${RELANCE_DAYS} jours.</div>`;
+  drawWeeks();drawCanal();
+}
+function relances(){
+  return items.filter(i=>OPEN.has(i.status)).map(i=>({...i,_d:dayDiff(lastAction(i))}))
+    .filter(i=>i._d!==null&&i._d>=RELANCE_DAYS).sort((a,b)=>b._d-a._d);
+}
+function weekStart(d){const x=new Date(d+"T12:00:00");const wd=(x.getDay()+6)%7;x.setDate(x.getDate()-wd);return x}
+function drawWeeks(){
+  const now=weekStart(today()),weeks=[];
+  for(let k=7;k>=0;k--){const w=new Date(now);w.setDate(w.getDate()-7*k);weeks.push({t:w.getTime(),label:`${String(w.getDate()).padStart(2,"0")}/${String(w.getMonth()+1).padStart(2,"0")}`,n:0})}
+  items.forEach(i=>{if(!i.date)return;const t=weekStart(i.date).getTime();const w=weeks.find(x=>x.t===t);if(w)w.n++});
+  const W=520,H=210,pl=30,pr=8,pt=18,pb=26,max=Math.max(4,...weeks.map(w=>w.n)),step=niceStep(max),top=Math.ceil(max/step)*step;
+  const bw=(W-pl-pr)/weeks.length,barW=Math.min(24,bw*.55),y=v=>pt+(H-pt-pb)*(1-v/top);
+  let g="";for(let v=0;v<=top;v+=step)g+=`<line class="grid" x1="${pl}" x2="${W-pr}" y1="${y(v)}" y2="${y(v)}"/><text class="axis" x="${pl-6}" y="${y(v)+4}" text-anchor="end">${v}</text>`;
+  const maxIdx=weeks.reduce((m,w,i)=>w.n>weeks[m].n?i:m,0);
+  const bars=weeks.map((w,i)=>{const cx=pl+bw*i+bw/2,x=cx-barW/2,h=H-pb-y(w.n);
+    const path=w.n?roundTop(x,y(w.n),barW,h,4):"";
+    return `<g class="m" data-tip="Semaine du ${w.label} : ${w.n} candidature${w.n>1?"s":""}" data-x="${cx}" data-y="${y(w.n)}">
+      <rect class="hit" x="${pl+bw*i}" y="${pt}" width="${bw}" height="${H-pt-pb}" fill="transparent"/>
+      ${path?`<path class="bar" d="${path}"/>`:""}
+      ${(i===maxIdx||i===weeks.length-1)&&w.n?`<text class="val" x="${cx}" y="${y(w.n)-5}" text-anchor="middle">${w.n}</text>`:""}
+      <text class="axis" x="${cx}" y="${H-8}" text-anchor="middle">${w.label}</text></g>`}).join("");
+  $("chWeek").innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Candidatures par semaine">${g}${bars}</svg><div class="tip"></div>
+    <details class="table-view"><summary>Voir en tableau</summary><table>${weeks.map(w=>`<tr><td>Sem. du ${w.label}</td><td>${w.n}</td></tr>`).join("")}</table></details>`;
+  bindTips("chWeek");
+}
+function canalGroup(c){c=(c||"").toLowerCase();
+  if(c.includes("hunter"))return"Mail (Hunter)";
+  if(c.startsWith("mail")||c.includes("mail drh"))return"Mail direct";
+  if(c.includes("hellowork"))return"HelloWork";
+  if(c.includes("indeed"))return"Indeed";
+  if(c.includes("welcome"))return"Welcome to the Jungle";
+  if(c.includes("bonne alternance"))return"La bonne alternance";
+  if(!c)return"Non précisé";return"Site de l'entreprise"}
+function drawCanal(){
+  const m={};items.forEach(i=>{const g=canalGroup(i.canal);m[g]=(m[g]||0)+1});
+  const rows=Object.entries(m).sort((a,b)=>b[1]-a[1]);
+  const W=520,lw=150,rowH=30,pt=4,H=pt+rows.length*rowH+4,max=Math.max(1,...rows.map(r=>r[1])),x=v=>lw+(W-lw-40)*v/max;
+  const bars=rows.map(([k,v],i)=>{const yy=pt+i*rowH,bh=14,by=yy+(rowH-bh)/2,w=x(v)-lw;
+    return `<g class="m" data-tip="${esc(k)} : ${v}" data-x="${lw+w/2}" data-y="${by}">
+      <rect class="hit" x="0" y="${yy}" width="${W}" height="${rowH}" fill="transparent"/>
+      <text class="lbl" x="0" y="${by+bh/2+4}">${esc(k)}</text>
+      <path class="bar" d="${roundRight(lw,by,w,bh,4)}"/>
+      <text class="val" x="${lw+w+6}" y="${by+bh/2+4}">${v}</text></g>`}).join("");
+  $("chCanal").innerHTML=rows.length?`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Candidatures par canal">${bars}</svg><div class="tip"></div>`:`<div class="empty">Pas encore de données.</div>`;
+  bindTips("chCanal");
+}
+function niceStep(max){return max<=5?1:max<=10?2:max<=25?5:max<=50?10:20}
+function roundTop(x,y,w,h,r){r=Math.min(r,h,w/2);return `M${x},${y+h}V${y+r}Q${x},${y} ${x+r},${y}H${x+w-r}Q${x+w},${y} ${x+w},${y+r}V${y+h}Z`}
+function roundRight(x,y,w,h,r){if(w<=0)return"";r=Math.min(r,w,h/2);return `M${x},${y}H${x+w-r}Q${x+w},${y} ${x+w},${y+r}V${y+h-r}Q${x+w},${y+h} ${x+w-r},${y+h}H${x}Z`}
+function bindTips(id){const box=$(id),tip=box.querySelector(".tip"),svg=box.querySelector("svg");if(!svg)return;
+  svg.querySelectorAll(".m").forEach(g=>{g.addEventListener("mouseenter",()=>{const r=svg.getBoundingClientRect(),s=r.width/svg.viewBox.baseVal.width;
+    tip.textContent=g.dataset.tip;tip.style.left=(g.dataset.x*s)+"px";tip.style.top=(g.dataset.y*s)+"px";tip.classList.add("on")});
+    g.addEventListener("mouseleave",()=>tip.classList.remove("on"))})}
+
+/* ---------- board ---------- */
+function renderBoard(){
+  $("board").innerHTML=STATUSES.map(([k,l])=>{const list=items.filter(i=>i.status===k).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+    return `<div class="col" data-status="${k}"><div class="col-head">${pill(k)}<span class="n">${list.length}</span></div>
+      <div class="col-body">${list.map(i=>{const d=dayDiff(lastAction(i));return `<div class="kcard" draggable="${!readOnly}" data-id="${esc(i.id)}" tabindex="0">
+        <b>${esc(i.entreprise)}</b><small>${esc(i.poste||"")}</small>
+        <div class="meta"><span>${esc(canalGroup(i.canal))}</span><span>${fmt(i.date)}${OPEN.has(i.status)&&d>=RELANCE_DAYS?" · à relancer":""}</span></div></div>`}).join("")||`<div class="empty" style="padding:12px;font-size:13px">Vide</div>`}</div></div>`}).join("");
+}
+let dragId=null;
+$("board").addEventListener("dragstart",e=>{const c=e.target.closest(".kcard");if(!c)return;dragId=c.dataset.id;c.classList.add("dragging");e.dataTransfer.effectAllowed="move";try{e.dataTransfer.setData("text/plain",dragId)}catch{}});
+$("board").addEventListener("dragend",e=>{e.target.closest?.(".kcard")?.classList.remove("dragging");document.querySelectorAll(".col.over").forEach(c=>c.classList.remove("over"))});
+$("board").addEventListener("dragover",e=>{const col=e.target.closest(".col");if(!col||!dragId)return;e.preventDefault();document.querySelectorAll(".col.over").forEach(c=>c!==col&&c.classList.remove("over"));col.classList.add("over")});
+$("board").addEventListener("drop",async e=>{const col=e.target.closest(".col");if(!col||!dragId)return;e.preventDefault();col.classList.remove("over");
+  const id=dragId;dragId=null;const it=items.find(i=>i.id===id);if(!it||it.status===col.dataset.status)return;
+  await changeStatus(it,col.dataset.status)});
+$("board").addEventListener("click",e=>{const c=e.target.closest(".kcard");if(c)openDrawer(c.dataset.id)});
+$("board").addEventListener("keydown",e=>{const c=e.target.closest(".kcard");if(c&&(e.key==="Enter"||e.key===" ")){e.preventDefault();openDrawer(c.dataset.id)}});
+
+async function changeStatus(it,status){
+  const hist=[...(it.historique||[]),{date:today(),texte:`Statut : ${LABEL[it.status]||it.status} → ${LABEL[status]}`}];
+  try{await db.doc("candidatures/"+it.id).update({status,maj:today(),historique:hist});say(`${it.entreprise} → ${LABEL[status]}`)}
+  catch(err){say("Impossible d'enregistrer ce changement.")}
+}
+
+/* ---------- list ---------- */
+function renderList(){
+  const c={};items.forEach(i=>c[i.status]=(c[i.status]||0)+1);
+  $("chips").innerHTML=[["all","Toutes",items.length],...STATUSES.map(([k,l])=>[k,l,c[k]||0])].filter(([k,,n])=>k==="all"||n||k===filter)
+    .map(([k,l,n])=>`<button type="button" class="chip" data-f="${k}" aria-pressed="${filter===k}">${l} · ${n}</button>`).join("");
+  const q=query.toLowerCase();
+  const list=items.filter(i=>(filter==="all"||i.status===filter)&&(!q||[i.entreprise,i.poste,i.canal,i.contact,i.email].join(" ").toLowerCase().includes(q)))
+    .sort((a,b)=>(b.date||"").localeCompare(a.date||"")||a.entreprise.localeCompare(b.entreprise));
+  $("rows").innerHTML=list.length?list.map(i=>`<tr data-id="${esc(i.id)}" tabindex="0"><td class="co"><b>${esc(i.entreprise)}</b><small>${esc(i.poste||"")}</small></td>
+    <td>${esc(i.canal||"")}</td><td class="date">${fmt(i.date)}</td><td>${pill(i.status)}</td><td class="date">${fmt(lastAction(i))}</td></tr>`).join("")
+    :`<tr><td colspan="5" class="empty">${items.length?"Rien ne correspond à ce filtre.":"Aucune candidature pour l'instant."}</td></tr>`;
+}
+$("chips").addEventListener("click",e=>{const b=e.target.closest(".chip");if(!b)return;filter=b.dataset.f;renderList()});
+$("q").addEventListener("input",e=>{query=e.target.value;renderList()});
+$("rows").addEventListener("click",e=>{const r=e.target.closest("tr[data-id]");if(r)openDrawer(r.dataset.id)});
+$("rows").addEventListener("keydown",e=>{const r=e.target.closest("tr[data-id]");if(r&&e.key==="Enter")openDrawer(r.dataset.id)});
+$("relances").addEventListener("click",async e=>{
+  const o=e.target.closest("[data-open]");if(o)return openDrawer(o.dataset.open);
+  const b=e.target.closest("[data-relance]");if(!b)return;const it=items.find(i=>i.id===b.dataset.relance);if(it)await markRelance(it)});
+
+async function markRelance(it){
+  const hist=[...(it.historique||[]),{date:today(),texte:"Relance envoyée"}];
+  try{await db.doc("candidatures/"+it.id).update({relance:today(),maj:today(),historique:hist});say(`Relance notée pour ${it.entreprise}.`)}
+  catch{say("Impossible d'enregistrer la relance.")}
+}
+
+/* ---------- drawer ---------- */
+const F=["entreprise","status","poste","canal","date","contact","email","lien","note"];
+function openDrawer(id){
+  current=id?items.find(i=>i.id===id):null;if(id&&!current)return;
+  const it=current||{status:"attente",date:today()};
+  F.forEach(k=>$("d-"+k).value=it[k]||"");
+  draftHist=[...(it.historique||[])];
+  $("dTitle").textContent=current?it.entreprise:"Nouvelle candidature";
+  $("dPill").innerHTML=current?pill(it.status)+(it.relance?` <span class="days" style="color:var(--muted);background:var(--surface-2)">relancée le ${fmt(it.relance)}</span>`:""):"";
+  $("d-del").hidden=!current||readOnly;$("d-relance").hidden=!current||readOnly;
+  renderLink();renderHist();$("dMsg").textContent="";
+  [...$("dForm").elements].forEach(el=>el.disabled=readOnly&&el.id!=="dClose");
+  $("scrim").hidden=false;$("drawer").hidden=false;setTimeout(()=>$("d-entreprise").focus(),30);
+}
+function closeDrawer(){$("scrim").hidden=true;$("drawer").hidden=true;current=null}
+function renderHist(){$("d-hist").innerHTML=draftHist.length?[...draftHist].reverse().map(h=>`<div><time>${fmt(h.date)}</time>${esc(h.texte)}</div>`).join(""):`<div style="color:var(--faint)">Rien pour l'instant.</div>`}
+function renderLink(){const v=$("d-lien").value.trim();$("d-lienOut").innerHTML=/^https?:\/\//.test(v)?`<a class="link" href="${esc(v)}" target="_blank" rel="noopener">Ouvrir l'offre ↗</a>`:""}
+$("d-lien").addEventListener("input",renderLink);
+$("d-histAdd").addEventListener("click",()=>{const t=$("d-histText").value.trim();if(!t)return;draftHist.push({date:today(),texte:t});$("d-histText").value="";renderHist()});
+$("d-histText").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();$("d-histAdd").click()}});
+$("dClose").addEventListener("click",closeDrawer);$("scrim").addEventListener("click",closeDrawer);
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("drawer").hidden)closeDrawer()});
+$("newBtn").addEventListener("click",()=>openDrawer(null));
+$("dForm").addEventListener("submit",async e=>{e.preventDefault();if(!db||readOnly)return;
+  const data={};F.forEach(k=>data[k]=$("d-"+k).value.trim());if(!data.entreprise)return;
+  if(current&&current.status!==data.status)draftHist.push({date:today(),texte:`Statut : ${LABEL[current.status]} → ${LABEL[data.status]}`});
+  data.historique=draftHist;data.maj=today();
+  try{
+    if(current){await db.doc("candidatures/"+current.id).update(data);say("Fiche enregistrée.")}
+    else{const id=(data.entreprise+"-"+Date.now().toString(36)).toLowerCase().normalize("NFD").replace(/[^a-z0-9-]+/g,"-").slice(0,60);
+      data.historique=[{date:today(),texte:"Candidature ajoutée"},...draftHist];await db.doc("candidatures/"+id).set(data);say("Candidature ajoutée.")}
+    closeDrawer();
+  }catch(err){$("dMsg").textContent="Enregistrement impossible ("+(err.code||"erreur")+")."}
+});
+$("d-relance").addEventListener("click",async()=>{if(current){await markRelance(current);closeDrawer()}});
+$("d-del").addEventListener("click",async()=>{const b=$("d-del");
+  if(b.dataset.confirm!=="1"){b.dataset.confirm="1";b.textContent="Confirmer la suppression";setTimeout(()=>{b.dataset.confirm="";b.textContent="Supprimer"},3000);return}
+  try{await db.doc("candidatures/"+current.id).delete();say("Candidature supprimée.");closeDrawer()}catch{$("dMsg").textContent="Suppression impossible."}
+  b.dataset.confirm="";b.textContent="Supprimer"});
+
+/* ---------- stockage local (navigateur) ---------- */
+const KEY="suivi-alternance-v1";
+let DATA={};const LISTENERS=[];
+try{DATA=JSON.parse(localStorage.getItem(KEY)||"{}")||{}}catch{DATA={}}
+function persist(){try{localStorage.setItem(KEY,JSON.stringify(DATA))}catch{say("Impossible d'enregistrer dans ce navigateur (navigation privée ?).")}LISTENERS.forEach(f=>f())}
+const localDb={
+  doc(path){const id=path.split("/")[1];return{
+    async update(d){if(!DATA[id])throw{code:"introuvable"};DATA[id]={...DATA[id],...JSON.parse(JSON.stringify(d))};persist()},
+    async set(d){DATA[id]=JSON.parse(JSON.stringify(d));persist()},
+    async delete(){delete DATA[id];persist()}}},
+  collection(){return{onSnapshot(next){const fire=()=>next({docs:Object.entries(DATA).map(([id,v])=>({id,data:()=>v}))});LISTENERS.push(fire);fire();return()=>{}}}}
+};
+
+/* ---------- import / export ---------- */
+$("exportBtn").addEventListener("click",()=>{
+  const blob=new Blob([JSON.stringify({app:"suivi-alternance",version:1,exportedAt:new Date().toISOString(),candidatures:DATA},null,1)],{type:"application/json"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`suivi-alternance-${today()}.json`;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);say("Sauvegarde téléchargée.")});
+$("importBtn").addEventListener("click",()=>$("importFile").click());
+$("importFile").addEventListener("change",async e=>{const f=e.target.files[0];if(!f)return;
+  try{const j=JSON.parse(await f.text());let recs=j.candidatures||j;
+    if(Array.isArray(recs))recs=Object.fromEntries(recs.map((r,i)=>[r.id||("item-"+i),r]));
+    const n=Object.keys(recs).length;if(!n)throw new Error("vide");
+    Object.entries(recs).forEach(([id,r])=>{const{id:_,...rest}=r;DATA[id]={...(DATA[id]||{}),...rest}});
+    persist();say(`${n} candidature(s) importée(s).`)}
+  catch{say("Ce fichier n'est pas une sauvegarde valide du suivi.")}
+  e.target.value=""});
+
+/* ---------- boot ---------- */
+function say(t){$("msg").textContent=t}
+function render(){$("banner").hidden=items.length>0;if(tab==="dash")renderDash();else if(tab==="board")renderBoard();else renderList()}
+db=localDb;
+db.collection("candidatures").onSnapshot(s=>{items=s.docs.map(d=>({id:d.id,...d.data()}));render();
+  if(current){const fresh=items.find(i=>i.id===current.id);if(fresh)current=fresh}});
+</script>
+</body>
+</html>
